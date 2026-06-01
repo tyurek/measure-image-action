@@ -82,7 +82,9 @@ jobs:
         run: |
           BRANCH="digest-update/${VERSION}"
 
-          sed -i "s|ghcr.io/tinfoilsh/measure-image-action@sha256:[a-f0-9]*|ghcr.io/tinfoilsh/measure-image-action@${DIGEST}|" action.yaml
+          # Fork: repin to THIS repo's image (matches any org so the inherited
+          # tinfoilsh reference is rewritten to ${IMAGE_NAME} on the first fork build).
+          sed -i "s|ghcr.io/[A-Za-z0-9._-]*/measure-image-action@sha256:[a-f0-9]*|${REGISTRY}/${IMAGE_NAME}@${DIGEST}|" action.yaml
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

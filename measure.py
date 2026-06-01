@@ -44,13 +44,17 @@ CVM_VERSION = config["cvm-version"]
 CPUS = config["cpus"]
 MEMORY = config["memory"]
 
-CVMIMAGE_REPO = "tinfoilsh/cvmimage"
+# Fork: measure against the forked cvmimage and its GitHub release assets (this
+# fork has no images.tinfoil.sh). The manifest is still attestation-verified
+# against CVMIMAGE_REPO; vmlinuz/initrd are then checked against the manifest's
+# hashes below. EDK2 firmware is unchanged (it matches the host's OVMF).
+CVMIMAGE_REPO = "tyurek/cvmimage"
 
 manifest_url = f"https://github.com/{CVMIMAGE_REPO}/releases/download/v{CVM_VERSION}/tinfoil-inference-v{CVM_VERSION}-manifest.json"
 manifest = fetch_verified_json_artifact(manifest_url, CVMIMAGE_REPO)
 
-kernel_file = fetch(f"https://images.tinfoil.sh/cvm/tinfoil-inference-v{CVM_VERSION}.vmlinuz", CACHE_DIR)
-initrd_file = fetch(f"https://images.tinfoil.sh/cvm/tinfoil-inference-v{CVM_VERSION}.initrd", CACHE_DIR)
+kernel_file = fetch(f"https://github.com/{CVMIMAGE_REPO}/releases/download/v{CVM_VERSION}/tinfoil-inference-v{CVM_VERSION}.vmlinuz", CACHE_DIR)
+initrd_file = fetch(f"https://github.com/{CVMIMAGE_REPO}/releases/download/v{CVM_VERSION}/tinfoil-inference-v{CVM_VERSION}.initrd", CACHE_DIR)
 
 kernel_hash = sha256sum(kernel_file)
 initrd_hash = sha256sum(initrd_file)
