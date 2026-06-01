@@ -17,8 +17,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-      pull-requests: write
-      actions: write
       id-token: write
       attestations: write
 
@@ -72,7 +70,7 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Create and merge digest update PR
+      - name: Commit digest update to main
         id: merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,71 +78,26 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         shell: bash
         run: |
-          BRANCH="digest-update/${VERSION}"
-
-          # Fork: repin to THIS repo's image (matches any org so the inherited
-          # tinfoilsh reference is rewritten to ${IMAGE_NAME} on the first fork build).
-          sed -i "s|ghcr.io/[A-Za-z0-9._-]*/measure-image-action@sha256:[a-f0-9]*|${REGISTRY}/${IMAGE_NAME}@${DIGEST}|" action.yaml
-
+          # Fork: commit the action.yaml digest update straight to main. Forks can't create
+          # PRs with the default GITHUB_TOKEN ("GitHub Actions is not permitted to create or
+          # approve pull requests") and don't need the review dance. The sed matches any org
+          # so the inherited tinfoilsh reference is rewritten to ${IMAGE_NAME} on first build.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git checkout -B "${BRANCH}"
+          git fetch origin main
+          git checkout -B main origin/main
+          sed -i "s|ghcr.io/[A-Za-z0-9._-]*/measure-image-action@sha256:[a-f0-9]*|${REGISTRY}/${IMAGE_NAME}@${DIGEST}|" action.yaml
           git add action.yaml
-          git commit -m "chore: update container digest for ${VERSION}
+          if git diff --cached --quiet; then
+            echo "action.yaml already references ${DIGEST}"
+          else
+            git commit -m "chore: update container digest for ${VERSION}
 
           Container digest: ${DIGEST}"
-          git push -f origin "${BRANCH}"
-
-          PR_URL=$(gh pr create \
-            --title "release: ${VERSION}" \
-            --body "Automated container digest update.
-
-          Container digest: \`${DIGEST}\`
-
-          This PR will be auto-merged. Once merged, the release workflow will create the \`${VERSION}\` tag and GitHub Release." \
-            --base main \
-            --head "${BRANCH}")
-
-          echo "PR created: ${PR_URL}"
-
-          # Try direct merge first, then fall back to auto-merge
-          if gh pr merge "${PR_URL}" --rebase --delete-branch; then
-            echo "PR merged directly"
-            echo "merged=true" >> $GITHUB_OUTPUT
-          elif gh pr merge "${PR_URL}" --auto --rebase --delete-branch; then
-            echo "Auto-merge enabled, waiting for merge..."
-            for i in $(seq 1 30); do
-              STATE=$(gh pr view "${PR_URL}" --json state -q .state)
-              if [ "${STATE}" = "MERGED" ]; then
-                echo "PR merged"
-                echo "merged=true" >> $GITHUB_OUTPUT
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "::error::Timed out waiting for auto-merge. Merge the PR manually, then run: gh workflow run release.yml -f version=${VERSION} -f digest=${DIGEST}"
-                echo "merged=false" >> $GITHUB_OUTPUT
-                exit 1
-              fi
-              sleep 20
-            done
-          else
-            echo "::error::Could not merge PR automatically. Merge it manually, then run: gh workflow run release.yml -f version=${VERSION} -f digest=${DIGEST}"
-            echo "merged=false" >> $GITHUB_OUTPUT
-            exit 1
+            git push origin main
           fi
 
-      - name: Trigger release workflow
-        if: always() && steps.merge.outputs.merged == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-          DIGEST: ${{ steps.build.outputs.digest }}
-        shell: bash
-        run: |
-          gh workflow run release.yml \
-            --ref main \
-            -f version="${VERSION}" \
-            -f digest="${DIGEST}"
-
-          echo "Release workflow triggered for ${VERSION}"
+      # Fork: upstream triggers release.yml here to cut a versioned action release. For the
+      # demo the workload repo pins this action by @main (build.yml already committed the
+      # image digest to main), so the versioned-release step — which also can't open PRs and
+      # only accepts vX.Y.Z — is dropped.
