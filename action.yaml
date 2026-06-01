@@ -67,9 +67,9 @@ runs:
           --tmpfs /cache \
           --tmpfs /root/.cache \
           -v "$(pwd)/output":/output \
-          -v "${{ inputs.config-file }}":/config.yml:ro \
+          -v "$(pwd)/${{ inputs.config-file }}":/config.yml:ro \
           -e GH_TOKEN=${{ inputs.github-token }} \
-        ghcr.io/tinfoilsh/measure-image-action@sha256:4c909b912389eeb0a2f47818a58a6d5c6a5847d7017349604133b15596aba1fc
+        ghcr.io/tyurek/measure-image-action@sha256:7584c9f76380c715e7904822bc62730957993982601d7b0a805b4b2d09b23eff
 
     - name: Fix output permissions
       shell: bash
